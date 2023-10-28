@@ -1,0 +1,17 @@
+[
+  {
+    "Name": "Putter",
+    "Price": 249.99,
+    "Amount": 30
+  },
+  {
+    "Name": "Driver",
+    "Price": 499.99,
+    "Amount": 6
+  },
+  {
+    "Name": "Wedge",
+    "Price": 139.99,
+    "Amount": 12
+  }
+]
