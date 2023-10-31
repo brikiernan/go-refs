@@ -2,6 +2,8 @@ package main
 
 import (
 	"database/sql"
+	"strconv"
+	"time"
 
 	_ "github.com/lib/pq"
 )
@@ -9,7 +11,7 @@ import (
 type Storage interface {
 	CreateAccount(*Account) (*Account, error)
 	DeleteAccount(int) (string, error)
-	UpdateAccount(*Account) (*Account, error)
+	UpdateAccount(int, *DepositAccountParams) (*Account, error)
 	ListAccounts() ([]*Account, error)
 	RetrieveAccount(int) (*Account, error)
 }
@@ -39,7 +41,8 @@ func (s *PostgresStore) Init() error {
 }
 
 func (s *PostgresStore) createAccountTable() error {
-	query := ` create table if not exists account (
+	query := ` 
+		create table if not exists account (
 		id serial primary key,
 		first_name varchar(96),
 		last_name varchar(96),
@@ -62,7 +65,7 @@ func (s *PostgresStore) CreateAccount(acc *Account) (*Account, error) {
 	query := `
 	insert into account (first_name, last_name, number, balance, created_at, updated_at)
 	values ($1, $2, nextval('acct_num_sequence'), $3, $4, $5)
-	returning *
+	returning *;
 	`
 
 	row := s.db.QueryRow(
@@ -90,16 +93,56 @@ func (s *PostgresStore) CreateAccount(acc *Account) (*Account, error) {
 	return account, nil
 }
 
-func (s *PostgresStore) DeleteAccount(int) (string, error) {
-	return "", nil
+func (s *PostgresStore) DeleteAccount(id int) (string, error) {
+	query := `
+	delete from account where id = $1;
+	`
+	_, err := s.db.Exec(query, &id)
+	if err != nil {
+		return "", err
+	}
+
+	return "Successfully deleted account " + strconv.Itoa(id), nil
 }
 
-func (s *PostgresStore) UpdateAccount(*Account) (*Account, error) {
-	return &Account{}, nil
+func (s *PostgresStore) UpdateAccount(id int, params *DepositAccountParams) (*Account, error) {
+	select_query := `
+	select id, balance from account where id = $1;
+	`
+	row := s.db.QueryRow(select_query, &id)
+
+	account := &Account{}
+	if err := row.Scan(&account.ID, &account.Balance); err != nil {
+		return nil, err
+	}
+
+	new_balance := account.Balance + params.Deposit
+
+	update_query := `
+	update account
+	set balance = $2, updated_at = $3
+	where id = $1 
+	returning *;
+	`
+	updated_row := s.db.QueryRow(update_query, &id, &new_balance, time.Now().UTC())
+
+	updated_account := &Account{}
+	if err := updated_row.Scan(
+		&updated_account.ID,
+		&updated_account.FirstName,
+		&updated_account.LastName,
+		&updated_account.Number,
+		&updated_account.Balance,
+		&updated_account.CreatedAt,
+		&updated_account.UpdatedAt); err != nil {
+		return nil, err
+	}
+
+	return updated_account, nil
 }
 
 func (s *PostgresStore) ListAccounts() ([]*Account, error) {
-	rows, err := s.db.Query("select * from account")
+	rows, err := s.db.Query("select * from account;")
 	if err != nil {
 		return nil, err
 	}
@@ -128,12 +171,9 @@ func (s *PostgresStore) ListAccounts() ([]*Account, error) {
 
 func (s *PostgresStore) RetrieveAccount(id int) (*Account, error) {
 	query := `
-	select * from account where id in ($1)
+	select * from account where id = $1;
 	`
-	row := s.db.QueryRow(
-		query,
-		&id,
-	)
+	row := s.db.QueryRow(query, &id)
 
 	account := &Account{}
 	if err := row.Scan(

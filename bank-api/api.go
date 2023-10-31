@@ -13,7 +13,7 @@ func (s *APIServer) Run() {
 	router := mux.NewRouter()
 
 	router.HandleFunc("/account", makeHTTPHandleFunc(s.handleAccount))
-	router.HandleFunc("/account/{id}", makeHTTPHandleFunc(s.handleRetrieveAccount))
+	router.HandleFunc("/account/{id}", makeHTTPHandleFunc(s.handleAccountById))
 
 	fmt.Printf("Server running on port: %v", s.listenAddr)
 
@@ -29,6 +29,18 @@ func (s *APIServer) handleAccount(w http.ResponseWriter, r *http.Request) error 
 		return s.handleCreateAccount(w, r)
 	}
 
+	return fmt.Errorf("Method %v not allowed", r.Method)
+}
+
+func (s *APIServer) handleAccountById(w http.ResponseWriter, r *http.Request) error {
+	if r.Method == "GET" {
+		return s.handleRetrieveAccount(w, r)
+	}
+
+	if r.Method == "PUT" {
+		return s.handleDeposit(w, r)
+	}
+
 	if r.Method == "DELETE" {
 		return s.handleDeleteAccount(w, r)
 	}
@@ -39,7 +51,6 @@ func (s *APIServer) handleAccount(w http.ResponseWriter, r *http.Request) error 
 func (s *APIServer) handleRetrieveAccount(w http.ResponseWriter, r *http.Request) error {
 	paramId := mux.Vars(r)["id"]
 	id, err := strconv.Atoi(paramId)
-
 	if err != nil {
 		return err
 	}
@@ -77,11 +88,38 @@ func (s *APIServer) handleCreateAccount(w http.ResponseWriter, r *http.Request) 
 }
 
 func (s *APIServer) handleDeleteAccount(w http.ResponseWriter, r *http.Request) error {
-	return nil
+	paramId := mux.Vars(r)["id"]
+	id, err := strconv.Atoi(paramId)
+	if err != nil {
+		return err
+	}
+
+	message, err := s.store.DeleteAccount(id)
+	if err != nil {
+		return err
+	}
+
+	return WriteJSON(w, http.StatusCreated, &message)
 }
 
-func (s *APIServer) handleTransfer(w http.ResponseWriter, r *http.Request) error {
-	return nil
+func (s *APIServer) handleDeposit(w http.ResponseWriter, r *http.Request) error {
+	paramId := mux.Vars(r)["id"]
+	id, err := strconv.Atoi(paramId)
+	if err != nil {
+		return err
+	}
+
+	params := DepositAccountParams{}
+	if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
+		return err
+	}
+
+	account, err := s.store.UpdateAccount(id, &params)
+	if err != nil {
+		return err
+	}
+
+	return WriteJSON(w, http.StatusOK, &account)
 }
 
 func WriteJSON(w http.ResponseWriter, status int, v any) error {

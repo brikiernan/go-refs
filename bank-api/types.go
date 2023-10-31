@@ -27,3 +27,11 @@ type CreateAccountParams struct {
 	FirstName string `json:"first"`
 	LastName  string `json:"last"`
 }
+
+type DeleteAccountParams struct {
+	ID int `json:"id"`
+}
+
+type DepositAccountParams struct {
+	Deposit float64 `json:"deposit"`
+}
