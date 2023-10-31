@@ -37,11 +37,19 @@ func (s *APIServer) handleAccount(w http.ResponseWriter, r *http.Request) error 
 }
 
 func (s *APIServer) handleRetrieveAccount(w http.ResponseWriter, r *http.Request) error {
-	id := mux.Vars(r)["id"]
+	paramId := mux.Vars(r)["id"]
+	id, err := strconv.Atoi(paramId)
 
-	fmt.Println("\n", id)
+	if err != nil {
+		return err
+	}
 
-	return WriteJSON(w, http.StatusOK, &Account{})
+	account, err := s.store.RetrieveAccount(id)
+	if err != nil {
+		return err
+	}
+
+	return WriteJSON(w, http.StatusOK, &account)
 }
 
 func (s *APIServer) handleListAccounts(w http.ResponseWriter, r *http.Request) error {
@@ -91,7 +99,7 @@ type APIError struct {
 func makeHTTPHandleFunc(f apiFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if err := f(w, r); err != nil {
-			WriteJSON(w, http.StatusBadRequest, APIError{Error: err.Error()})
+			WriteJSON(w, http.StatusBadRequest, &APIError{Error: err.Error()})
 		}
 	}
 }

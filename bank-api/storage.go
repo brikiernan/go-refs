@@ -126,6 +126,27 @@ func (s *PostgresStore) ListAccounts() ([]*Account, error) {
 
 }
 
-func (s *PostgresStore) RetrieveAccount(int) (*Account, error) {
-	return nil, nil
+func (s *PostgresStore) RetrieveAccount(id int) (*Account, error) {
+	query := `
+	select * from account where id in ($1)
+	`
+	row := s.db.QueryRow(
+		query,
+		&id,
+	)
+
+	account := &Account{}
+	if err := row.Scan(
+		&account.ID,
+		&account.FirstName,
+		&account.LastName,
+		&account.Number,
+		&account.Balance,
+		&account.CreatedAt,
+		&account.UpdatedAt,
+	); err != nil {
+		return nil, err
+	}
+
+	return account, nil
 }
