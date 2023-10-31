@@ -13,7 +13,7 @@ func (s *APIServer) Run() {
 	router := mux.NewRouter()
 
 	router.HandleFunc("/account", makeHTTPHandleFunc(s.handleAccount))
-	router.HandleFunc("/account/{id}", makeHTTPHandleFunc(s.handleAccount))
+	router.HandleFunc("/account/{id}", makeHTTPHandleFunc(s.handleRetrieveAccount))
 
 	fmt.Printf("Server running on port: %v", s.listenAddr)
 
@@ -22,7 +22,7 @@ func (s *APIServer) Run() {
 
 func (s *APIServer) handleAccount(w http.ResponseWriter, r *http.Request) error {
 	if r.Method == "GET" {
-		return s.handleGetAccount(w, r)
+		return s.handleListAccounts(w, r)
 	}
 
 	if r.Method == "POST" {
@@ -36,16 +36,36 @@ func (s *APIServer) handleAccount(w http.ResponseWriter, r *http.Request) error 
 	return fmt.Errorf("Method %v not allowed", r.Method)
 }
 
-func (s *APIServer) handleGetAccount(w http.ResponseWriter, r *http.Request) error {
+func (s *APIServer) handleRetrieveAccount(w http.ResponseWriter, r *http.Request) error {
 	id := mux.Vars(r)["id"]
 
 	fmt.Println("\n", id)
 
-	return WriteJSON(w, http.StatusBadRequest, &Account{})
+	return WriteJSON(w, http.StatusOK, &Account{})
+}
+
+func (s *APIServer) handleListAccounts(w http.ResponseWriter, r *http.Request) error {
+	accounts, err := s.store.ListAccounts()
+	if err != nil {
+		return err
+	}
+
+	return WriteJSON(w, http.StatusOK, &accounts)
 }
 
 func (s *APIServer) handleCreateAccount(w http.ResponseWriter, r *http.Request) error {
-	return nil
+	params := CreateAccountParams{}
+	if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
+		return err
+	}
+
+	account := NewAccount(params.FirstName, params.LastName)
+	newAcct, err := s.store.CreateAccount(account)
+	if err != nil {
+		return err
+	}
+
+	return WriteJSON(w, http.StatusCreated, &newAcct)
 }
 
 func (s *APIServer) handleDeleteAccount(w http.ResponseWriter, r *http.Request) error {
@@ -78,8 +98,12 @@ func makeHTTPHandleFunc(f apiFunc) http.HandlerFunc {
 
 type APIServer struct {
 	listenAddr int
+	store      Storage
 }
 
-func NewAPIServer(listenAddr int) *APIServer {
-	return &APIServer{listenAddr: listenAddr}
+func NewAPIServer(listenAddr int, store Storage) *APIServer {
+	return &APIServer{
+		listenAddr: listenAddr,
+		store:      store,
+	}
 }
